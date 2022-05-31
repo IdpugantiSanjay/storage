@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="Dropbox.Api" Version="6.30.0" />
       <PackageReference Include="Google.Apis.Drive.v3" Version="1.57.0.2684" />
       <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.1" />
       <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="6.0.0" />
@@ -22,6 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Storage.Dropbox.Service\Storage.Dropbox.Service.csproj" />
       <ProjectReference Include="..\Storage.GoogleDrive.Service\Storage.GoogleDrive.Service.csproj" />
     </ItemGroup>
 

@@ -1,12 +1,14 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 
+using Dropbox.Api;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
 using Google.Apis.Services;
 using Google.Apis.Util.Store;
-using Storage.GoogleDrive.Service;
-
+using Storage.Common;
+using DropboxSearch = Storage.Dropbox.Service.Search;
+using GoogleDriveSearch = Storage.GoogleDrive.Service.Search;
 
 if (args.Length == 0)
 {
@@ -23,15 +25,16 @@ try
     const string applicationName = "Storage";
     const string credPath = "tokens/token.json";
 
-    var credentialsPath = Environment.GetEnvironmentVariable("GOOGLEDRIVE_CREDENTIALS_PATH");
+    var googleDriveCredentialsPath = Environment.GetEnvironmentVariable("GOOGLEDRIVE_CREDENTIALS_PATH");
+    var dropboxAccessToken = Environment.GetEnvironmentVariable("DROPBOX_ACCESS_TOKEN");
 
-    if (string.IsNullOrWhiteSpace(credentialsPath))
+    if (string.IsNullOrWhiteSpace(googleDriveCredentialsPath))
     {
         Console.WriteLine("Please set env: GOOGLEDRIVE_CREDENTIALS_PATH");
         return 0;
     }
 
-    await using var stream = new FileStream(credentialsPath, FileMode.Open, FileAccess.Read);
+    await using var stream = new FileStream(googleDriveCredentialsPath, FileMode.Open, FileAccess.Read);
 
     var credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
         GoogleClientSecrets.FromStream(stream).Secrets,
@@ -46,17 +49,33 @@ try
         ApplicationName = applicationName
     });
 
-    var search = new Search(service);
+    var dropboxClient = new DropboxClient(dropboxAccessToken);
+    var dropboxSearch = new DropboxSearch(dropboxClient);
+
+
+    var googleDriveSearch = new GoogleDriveSearch(service);
 
 
     var cancellationTokenSource = new CancellationTokenSource();
-    Console.CancelKeyPress += delegate {
-        cancellationTokenSource.Cancel();
-    };
+    Console.CancelKeyPress += delegate { cancellationTokenSource.Cancel(); };
 
-    await foreach (var filesChunk in search.List(searchValue, cancellationTokenSource.Token))
-        foreach (var fileMetaData in filesChunk)
-            Console.WriteLine(fileMetaData.Name);
+    var searchAggregator = new SearchAggregator(new IStorageSearch[] {dropboxSearch, googleDriveSearch});
+
+    try
+    {
+        await foreach (var filesChunk in searchAggregator.List(searchValue, cancellationTokenSource.Token))
+        {
+            foreach (var fileMetaData in filesChunk)
+            {
+                Console.WriteLine($"{fileMetaData.Name} [{fileMetaData.StorageProviderName}]");
+            }
+        }
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e);
+        throw;
+    }
 
     return 1;
 }
