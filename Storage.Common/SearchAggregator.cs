@@ -2,7 +2,7 @@ using System.Threading.Channels;
 
 namespace Storage.Common;
 
-public class SearchAggregator: IStorageSearch
+public class SearchAggregator : IStorageSearch
 {
     private readonly IEnumerable<IStorageSearch> _searchServices;
 
@@ -23,18 +23,26 @@ public class SearchAggregator: IStorageSearch
             enumerationTasks.Add(task);
 #pragma warning restore CS4014
         }
-        
+
         Task.WhenAll(enumerationTasks).ContinueWith(_ => channel.Writer.Complete(), ctx);
-        
+
         return channel.Reader.ReadAllAsync(ctx);
     }
 
 
-    private static async Task EnumerateFilesTask(IStorageSearch search, string query, ChannelWriter<IEnumerable<FileMetaData>> writer, CancellationToken ctx)
+    private static async Task EnumerateFilesTask(IStorageSearch search, string query,
+        ChannelWriter<IEnumerable<FileMetaData>> writer, CancellationToken ctx)
     {
-        await foreach (var filesChunk in search.List(query, ctx))
+        try
         {
-            await writer.WriteAsync(item: filesChunk, cancellationToken: ctx);
+            await foreach (var filesChunk in search.List(query, ctx))
+            {
+                await writer.WriteAsync(item: filesChunk, cancellationToken: ctx);
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
         }
     }
 }
