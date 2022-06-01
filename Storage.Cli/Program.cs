@@ -1,6 +1,9 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 
+using Box.V2;
+using Box.V2.Auth;
+using Box.V2.Config;
 using Dropbox.Api;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
@@ -9,6 +12,7 @@ using Google.Apis.Util.Store;
 using Storage.Common;
 using DropboxSearch = Storage.Dropbox.Service.Search;
 using GoogleDriveSearch = Storage.GoogleDrive.Service.Search;
+using BoxSearch = Storage.Box.Service.Search;
 
 if (args.Length == 0)
 {
@@ -27,7 +31,12 @@ try
 
     var googleDriveCredentialsPath = Environment.GetEnvironmentVariable("GOOGLEDRIVE_CREDENTIALS_PATH");
     var dropboxAccessToken = Environment.GetEnvironmentVariable("DROPBOX_ACCESS_TOKEN");
+    var boxClientId = Environment.GetEnvironmentVariable("BOX_CLIENT_ID");
+    var boxClientSecret = Environment.GetEnvironmentVariable("BOX_CLIENT_SECRET");
+    var boxDeveloperToken = Environment.GetEnvironmentVariable("BOX_DEVELOPER_TOKEN");
 
+    
+    
     if (string.IsNullOrWhiteSpace(googleDriveCredentialsPath))
     {
         Console.WriteLine("Please set env: GOOGLEDRIVE_CREDENTIALS_PATH");
@@ -48,18 +57,26 @@ try
         HttpClientInitializer = credential,
         ApplicationName = applicationName
     });
+    
+    var config = new BoxConfigBuilder(boxClientId, boxClientSecret).Build();
+    var session = new OAuthSession(boxDeveloperToken, "NOT_NEEDED", 3600, "bearer");
+    var boxClient = new BoxClient(config, session);
 
+    var boxSearch = new BoxSearch(boxClient);
+    
     var dropboxClient = new DropboxClient(dropboxAccessToken);
     var dropboxSearch = new DropboxSearch(dropboxClient);
 
 
     var googleDriveSearch = new GoogleDriveSearch(service);
+    
+    
 
 
     var cancellationTokenSource = new CancellationTokenSource();
     Console.CancelKeyPress += delegate { cancellationTokenSource.Cancel(); };
 
-    var searchAggregator = new SearchAggregator(new IStorageSearch[] {dropboxSearch, googleDriveSearch});
+    var searchAggregator = new SearchAggregator(new IStorageSearch[] {boxSearch, dropboxSearch, googleDriveSearch});
 
     try
     {
@@ -77,10 +94,10 @@ try
         throw;
     }
 
-    return 1;
+    return 0;
 }
-catch (FileNotFoundException e)
+catch (Exception e)
 {
     Console.WriteLine(e.Message);
-    return 0;
+    return 1;
 }

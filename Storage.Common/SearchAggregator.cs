@@ -15,23 +15,26 @@ public class SearchAggregator: IStorageSearch
     public IAsyncEnumerable<IEnumerable<FileMetaData>> List(string name, CancellationToken ctx)
     {
         var channel = Channel.CreateUnbounded<IEnumerable<FileMetaData>>();
+        var enumerationTasks = new List<Task>();
         foreach (var searchService in _searchServices)
         {
 #pragma warning disable CS4014
-            EnumerateFiles(searchService, name, channel.Writer, ctx);
+            var task = EnumerateFilesTask(searchService, name, channel.Writer, ctx);
+            enumerationTasks.Add(task);
 #pragma warning restore CS4014
         }
+        
+        Task.WhenAll(enumerationTasks).ContinueWith(_ => channel.Writer.Complete(), ctx);
+        
         return channel.Reader.ReadAllAsync(ctx);
     }
 
 
-    private static async Task EnumerateFiles(IStorageSearch search, string query, ChannelWriter<IEnumerable<FileMetaData>> writer, CancellationToken ctx)
+    private static async Task EnumerateFilesTask(IStorageSearch search, string query, ChannelWriter<IEnumerable<FileMetaData>> writer, CancellationToken ctx)
     {
         await foreach (var filesChunk in search.List(query, ctx))
         {
-#pragma warning disable CS4014
-            writer.WriteAsync(item: filesChunk, cancellationToken: ctx);
-#pragma warning restore CS4014
+            await writer.WriteAsync(item: filesChunk, cancellationToken: ctx);
         }
     }
 }
