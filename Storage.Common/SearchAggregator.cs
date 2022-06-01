@@ -43,6 +43,7 @@ public class SearchAggregator : IStorageSearch
         catch (Exception e)
         {
             Console.WriteLine(e);
+            throw;
         }
     }
 }
